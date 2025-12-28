@@ -3,7 +3,7 @@ from langchain_core.tools import StructuredTool
 import requests
 from pydantic import BaseModel, Field
 from typing import Literal
-
+import time
 
 url = "http://192.168.1.106:8000"
 headers = {'Content-Type': 'application/json'}
@@ -38,29 +38,26 @@ def _move_motors(top_left: MotorCommand, top_right: MotorCommand, bottom_right: 
 
         data = response.json()
         if data.get("status") == "busy":
-            return "Failed: robot is busy rn (fucking your girlfriend)"
+            return "Failed: robot is busy"
         
         print("Command accepted. Waiting for robot to finish")
 
         while True:
             print("in here")
             time.sleep(2)
-            try:
-                print("over here")
-                status = requests.get(f"{url}/", timeout=5)
-                st_data = status.json()
+            status = requests.get(f"{url}/", timeout=5)
+            print(f"{url}/")
+            st_data = status.json()
+            print(st_data)
+            print(f"\n{st_data.get('status')}")
 
-                if st_data.get("status") == "idle" and st_data.get("result") != "":
-                    print("Job theoretically finished")
-                    break
-                else:
-                    print("Robot is still moving")
-            except Exception as e:
-                print(f"Couldn't check status: {e}")
+            if st_data.get("status") == "idle" and st_data.get("result") != "":
+                print(st_data.get('result'))
+                return f"Robot seems to have worked: {st_data.get('result')}"
+            else:
+                print("Robot is still moving")
 
         print("suka blyat")
-
-        return "The robot completed the movement"
     except requests.exceptions.ReadTimeout:
         return "Timeout exception happened"
     except Exception as e:

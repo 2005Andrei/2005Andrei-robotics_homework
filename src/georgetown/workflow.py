@@ -1,7 +1,7 @@
 from langchain_core.messages import BaseMessage
 from langgraph.graph import StateGraph, START, END
 from .agent import agent, tools_executor, check_goal, OverallState
-from langchain_core.messages import AIMessage
+from langchain_core.messages import AIMessage, ToolMessage
 
 
 
@@ -14,10 +14,12 @@ def route_after_agent(state: OverallState):
     last_msg = state["messages"][-1]
     if isinstance(last_msg, AIMessage) and last_msg.tool_calls:
         return "tools"
+    if isinstance(last_msg, ToolMessage):
+        return "check_goal"
     return "check_goal"
 
 def route_after_check(state: OverallState):
-    if state.get("goal_achieved", False) or state["mode"] == "user":
+    if state.get("goal_achieved", False):
         return END
     return "agent"
 

@@ -6,8 +6,6 @@ import os
 
 
 class OverallState(TypedDict):
-    mode: str
-    goal: str
     user_input: str
     messages: List[BaseMessage]
     goal_achieved: bool
@@ -16,44 +14,37 @@ class OverallState(TypedDict):
 llm = ChatGroq(
     model="llama-3.1-8b-instant",
     temperature=0,
-    groq_api_key = "yup"
+    groq_api_key = "yum yum" # it's the free api key so it is pretty useless but anyways
 ).bind_tools(tools)
 
 def agent(state: OverallState) -> OverallState:
-    # the state comes in with user input
+    print("in agent")
     messages = state["messages"]
+    if messages and isinstance(messages[-1], ToolMessage):
+        return state
+    system_content = (
+        "You are a robot assistant"
+        "To move forward, set all 4 motors (top_left, top_right, bottom_left, bottom_right) to 'forward'. "
+        "Speed is 0-255 (default 200). Time is in seconds. "
+        "To rotate 90 degrees, use speed 100 for 1.7 seconds and move motors on opposing sides in oppoisite directions, tank style"
+        "If the goal is achieved, respond with 'DONE'."
+    )
 
- 
-    if state["mode"] == "user":
-        if not messages or not isinstance(messages[-1], HumanMessage):
-            messages.append(HumanMessage(content=state["user_input"]))
-        system_content = "You are a robot assistant. To move forward, set all 4 motors (top_left, top_right, bottom_left, bottom_right) to 'forward', speed 200, whatever time you consider."
-
-    else:
-        if not messages:
-            system_content = f"You are an autonomous robot agent. Your goal is {state['goal']}. You must use provided tools to accomplish it. When the goal is fully achieved, include 'DONE' in your response"
-        else:
-            system_content = messages[0].content if isinstance(messages[0], SystemMessage) else ""
-
-
-    if not any(isinstance(m, SystemMessage) for m in messages):
+    if not messages or not isinstance(messages[0], SystemMessage):
         messages = [SystemMessage(content=system_content)] + messages
+
+    if messages and isinstance(messages[-1], (AIMessage, SystemMessage)):
+        messages.append(HumanMessage(content=state["user_input"]))
 
     try:
         ai_msg = llm.invoke(messages)
     except Exception as e:
-        error_text = str(e)
-        if "tool call validation failed" in error_text or "400" in error_text:
-            ai_msg = AIMessage(content="You bastard, I cannot execute that command. The parameters provided (like speed) were outside the allowed limits (max 255). Please try again you dirty boy")
-        else:
-            ai_msg = AIMessage(content=f"An unexpected error occurred: {error_text}")
-
-    print(f"DEBUG - AI Response: {ai_msg.content}")
-    print(f"DEBUG - Tool Calls: {ai_msg.tool_calls}")
+        ai_msg = AIMessage(f"My brain disconnected {str(e)}")
 
     return {"messages": messages + [ai_msg]}
 
 def tools_executor(state: OverallState) -> OverallState:
+    print("in tools")
     messages = state["messages"]
     ai_msg = messages[-1]
 
@@ -87,12 +78,27 @@ def tools_executor(state: OverallState) -> OverallState:
 
 
 def check_goal(state: OverallState) -> OverallState:
-    if state["mode"] == "user":
-        return {"goal_achieved": True}
-
+    print("in check")
     messages = state["messages"]
-    check_messages = [SystemMessage(content=f"Goal: {state['goal']}. Based on the conversation history, is the goal achieved? Respond only with 'YES' or 'NO'.")] + messages
-    response = llm.invoke(check_messages).content.strip().upper()
-    goal_achieved = "YES" in response
-    return {"goal_achieved": goal_achieved}
+    user_goal = state["user_input"]
 
+    last_msg = messages[-1]
+    if isinstance(last_msg, AIMessage) and not last_msg.tool_calls:
+        if "DONE" in last_msg.content:
+            return {"goal_achieved": True}
+
+    system_prompt = (
+        f"You are a supervisor. The user asked for '{user_goal}'"
+        "Review the conversation and establish whether the user's request has been satisfied."
+        "If the user's request has been fully satisfied, respond YES"
+        "If more actions are needed, respond NO."
+    )
+
+    if any(isinstance(message, ToolMessage) for message in messages):
+        print("yes")
+    else:
+        print("amnesia")
+
+    response = llm.invoke([SystemMessage(content=system_prompt)] + messages[-4:])
+
+    return {"goal_achieved": "YES" in response.content.strip().upper()}

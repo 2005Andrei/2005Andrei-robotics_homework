@@ -1,4 +1,14 @@
 from .workflow import workflow, OverallState
+from langchain_core.messages import AIMessage, ToolMessage, SystemMessage
+
+def last_messages(history, n):
+    system_prompts = [m for m in history if isinstance(m, SystemMessage)]
+    non_system = [m for m in history if not isinstance(m, SystemMessage)]
+    recent_messages = non_system[-n:]
+    while recent_messages and isinstance(recent_messages[0], ToolMessage):
+        recent_messages.pop(0)
+
+    return system_prompts + recent_messages
 
 def main():
     george = workflow.compile()
@@ -6,32 +16,22 @@ def main():
     conversation = []
 
     while True:
-        mode = "user" # going to be some user input shi
-        if mode == "exit":
-            break
-        elif mode == "user":
-            user_input = str(input("Enter: "))
-            initial_state: OverallState = {
-                "mode": mode,
-                "goal": "",
-                "user_input": user_input,
-                "messages": conversation[-4],
-                "goal_achieved": False
-            }
-        elif mode == "autonomous":
-            print("Not fucking yet go to hell bitch")
-        else:
-            print("Something broke. Fuck you")
+        user_input = str(input("Enter: "))
+        initial_state: OverallState = {
+            "user_input": user_input,
+            "messages": last_messages(conversation, 6),
+            "goal_achieved": False
+        }
 
         result = george.invoke(initial_state)
-        history.append(result["messages"])
+        history = result["messages"]
 
-        if isinstance(histry[-1], AIMessage):
-            print(f"history[-1]\n")
+        if isinstance(history[-1], AIMessage):
+            print(f"{history[-1].content}\n")
 
 
 if __name__ == "__main__":
     try:
         main()
-    except KeyboardInterrupt as e:
+    except KeyboardInterrupt:
         print("\nexiting...")
