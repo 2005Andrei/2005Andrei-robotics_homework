@@ -53,7 +53,7 @@ def _move_motors(top_left: MotorCommand, top_right: MotorCommand, bottom_right: 
 
             if st_data.get("status") == "idle" and st_data.get("result") != "":
                 print(st_data.get('result'))
-                return f"Robot seems to have worked: {st_data.get('result')}"
+                return f"Robot worked. The result of your movement was: {st_data.get("result")}"
             else:
                 print("Robot is still moving")
 
@@ -71,5 +71,22 @@ move_motors = StructuredTool.from_function(
     handle_tool_error=True
 )
 
+@tool
+def get_sensor():
+    """A function to get the distance of an object in front of the robot"""
+    print("Sensor function")
+    try:
+        response = requests.get(f"{url}/sensor")
+        res = response.json()
 
-tools = [move_motors]
+        if res["distance"] > 60:
+            return "Clear. No object in front of the robot"
+        elif res["distance"] > 15:
+            return f"Clear. Object at {res['distance']} cm in front of the robot. Can still move forward"
+        else:
+            return f"OBSTACLE DETECTED. Object is too close at {res['distance']} cm away."
+    except Exception as e:
+        return f"Unexpected error: {e}"
+
+
+tools = [move_motors, get_sensor]
