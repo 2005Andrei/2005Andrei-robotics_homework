@@ -22,8 +22,7 @@ def main():
             result = george.invoke(initial_state)
             history = result["messages"]
 
-            if isinstance(result[-1], AIMessage):
-                print(f"Here: {result[-1].content}\n")
+        print(f"Done\n")
     except KeyboardInterrupt:
         print("Exit...")
 
